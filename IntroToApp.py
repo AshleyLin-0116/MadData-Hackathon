@@ -1,8 +1,4 @@
-def main():
 
-
-
-####
     import tkinter as tk
 from tkinter import Tk, messagebox
 
@@ -68,4 +64,5 @@ setup_button = tk.Button(
 setup_button.pack(pady=10)
 
 # Run the Tkinter event loop
+
 root.mainloop()
