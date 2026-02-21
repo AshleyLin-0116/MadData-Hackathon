@@ -1,12 +1,18 @@
 import pandas as pd
-import zipfile
-import os
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.metrics import r2_score, mean_squared_error
+
 
 class Train_Model:
     stress = None
+    # Importing datasets
     mental_health = pd.read_csv("MentalHealthSurvey.csv")
     sleep_health = pd.read_csv("expanded_sleep_health_dataset.csv")
     student_stress = pd.read_csv("Student Stress Factors.csv")
+    # Cleaning datasets
     mental_health_clean = mental_health[[
         'gender', 
         'age', 
@@ -64,3 +70,93 @@ class Train_Model:
         'Female': 1
     })
     sleep_health_clean['blood_pressure'] = (sleep_health_clean['blood_pressure'].str.split('/').str[0].astype(float))
+    # Training the Model
+    def bin_stress(series, n_levels=10):
+        """
+        Converts a numeric stress column into 3 bins:
+          0 = Low    (bottom third)
+          1 = Medium (middle third)
+          2 = High   (top third)
+
+        Pass n_levels=5 if your column runs 1-5, n_levels=10 if it runs 1-10.
+        """
+        if n_levels == 10:
+            return pd.cut(series, bins=[0, 3, 7, 10], labels=[0, 1, 2]).astype(int)
+        else:
+            return pd.cut(series, bins=[0, 2, 3, 5], labels=[0, 1, 2]).astype(int)
+    sleep_health_clean['stress_bin'] = bin_stress(sleep_health_clean['stress_level'], n_levels=10)
+    student_stress_clean['stress_bin'] = bin_stress(student_stress_clean['stress_level'], n_levels=5)
+
+    def train_regression(self, dataset='sleep'):
+        print(f"\n{'='*55}")
+        print(f"  REGRESSION TRAINING  --  dataset: {dataset}")
+        print(f"{'='*55}")
+        if dataset == 'sleep':
+            df = self.sleep_health_clean.copy()
+            feature_cols = [
+                'sleep_duration',
+                'sleep_quality',
+                'activity_level',
+                'blood_pressure',
+                'heart_level',
+                'daily_steps'
+            ]
+            target = 'stress_level'
+        elif dataset == 'student':
+            df = self.student_stress_clean.copy()
+            feature_cols = [
+                'sleep_quality',
+                'num_headaches',
+                'academic_performance',
+                'study_load',
+                'num_extracurricular'
+            ]
+            target = 'stress_level'
+        else:
+            raise ValueError("dataset must be 'sleep' or 'student'")
+        X = df[feature_cols]
+        y = df[target]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        scaler = StandardScaler()
+        X_train_s = scaler.fit_transform(X_train)
+        X_test_s  = scaler.transform(X_test)
+        models = {
+            'Linear Regression': LinearRegression(),
+            'Ridge (a=1.0)'    : Ridge(alpha=1.0),
+            'Lasso (a=0.1)'    : Lasso(alpha=0.1),
+        }
+        results = {}
+        for name, model in models.items():
+            model.fit(X_train_s, y_train)
+            preds = model.predict(X_test_s)
+            r2   = r2_score(y_test, preds)
+            mse  = mean_squared_error(y_test, preds)
+            rmse = np.sqrt(mse)
+            results[name] = {'model': model, 'r2': r2, 'mse': mse, 'rmse': rmse}
+            print(f"\n-- {name} --")
+            print(f"  R2   : {r2:.4f}")
+            print(f"  MSE  : {mse:.4f}")
+            print(f"  RMSE : {rmse:.4f}")
+            print("  Coefficients:")
+            for feat, coef in zip(feature_cols, model.coef_):
+                direction = "up stress" if coef > 0 else "down stress"
+                print(f"    {feat:<25} {coef:+.4f}  ({direction})")
+        best_name  = max(results, key=lambda k: results[k]['r2'])
+        best_model = results[best_name]['model']
+        print(f"\nBest model: {best_name}  (R2={results[best_name]['r2']:.4f})")
+        return best_model, scaler, feature_cols
+    # Save Model
+    def save_model(self, model, scaler, feature_cols, path='stress_model.pkl'):
+        import joblib
+        bundle = {
+            'model'       : model,
+            'scaler'      : scaler,
+            'feature_cols': feature_cols
+        }
+        joblib.dump(bundle, path)
+        print(f"\nModel saved -> {path}")
+
+if __name__ == "__main__":
+    tm = Train_Model()
+    model, scaler, features = tm.train_regression(dataset='sleep')
+    tm.save_model(model, scaler, features, path='stress_model.pkl')
