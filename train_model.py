@@ -51,3 +51,7 @@ class Avatar_Model:
         'How many times a week you practice extracurricular activities 🎾?' : 'num_extracurricular',
         'How would you rate your stress levels?' : 'stress_level'
     })
+    mental_health_clean = mental_health_clean.dropna()
+    sleep_health_clean = sleep_health_clean.dropna()
+    student_stress_clean = student_stress_clean.dropna()
+    
