@@ -2,7 +2,7 @@ import pandas as pd
 import zipfile
 import os
 
-class Avatar_Model:
+class Train_Model:
     stress = None
     mental_health = pd.read_csv("MentalHealthSurvey.csv")
     sleep_health = pd.read_csv("expanded_sleep_health_dataset.csv")
@@ -54,4 +54,13 @@ class Avatar_Model:
     mental_health_clean = mental_health_clean.dropna()
     sleep_health_clean = sleep_health_clean.dropna()
     student_stress_clean = student_stress_clean.dropna()
-    
+    mental_health_clean['gender'] = mental_health_clean['gender'].map({
+        'Male': 0,
+        'Female': 1
+    })
+    mental_health_clean['average_sleep'] = (mental_health_clean['average_sleep'].str.split('-').str[0].astype(int) + 1)
+    sleep_health_clean['gender'] = sleep_health_clean['gender'].map({
+        'Male': 0,
+        'Female': 1
+    })
+    sleep_health_clean['blood_pressure'] = (sleep_health_clean['blood_pressure'].str.split('/').str[0].astype(float))
