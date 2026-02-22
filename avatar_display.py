@@ -10,7 +10,7 @@ def get_avatar_state(stress_score: float) -> str:
         return "stressed"
     else:
         return "overwhelmed"
-
+    
 def display_avatar(stress_score: float, avatar_dir: str = "avatars"):
     state    = get_avatar_state(stress_score)
     filename = f"avatar_{state}.png"
@@ -35,4 +35,5 @@ def display_avatar_for_log(log, avatar_dir: str = "avatars"):
     if log.predicted_stress is None:
         print("No stress score found on this log entry.")
         return
+    print(f"--- DISPLAYING: {log.avatar} ---")   # kept from placeholder
     display_avatar(log.predicted_stress, avatar_dir)

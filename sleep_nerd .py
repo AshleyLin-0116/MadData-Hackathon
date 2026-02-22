@@ -95,42 +95,64 @@ RISK_DATA = [
 ]
 
 def mock_backend(profile):
-    """Simulate network delay + return computed risks."""
-    time.sleep(random.uniform(0.8, 1.3))
+    """
+    Calls the real data-driven backend (backend.py).
+    backend.py trains scikit-learn Random Forest models on
+    expanded_sleep_health_dataset.csv (1,500 real records) at first call,
+    then caches them for all subsequent predictions.
+    Returns a normalised dict compatible with the UI.
+    """
+    try:
+        import backend as _be
+        # Map UI profile keys to backend keys
+        be_profile = {
+            "user_name":    profile.get("name", profile.get("user_name", "Friend")),
+            "age":          int(profile.get("age", 30)),
+            "occupation":   profile.get("occupation", "Other / Not Listed"),
+            "stress":       int(profile.get("stress", 5)),
+            "sleep_hours":  float(profile.get("sleep_hours", 7.0)),
+            "sleep_quality":int(profile.get("sleep_quality", 3)),
+            "exercise_days":int(profile.get("exercise_days", 3)),
+            "caffeine_cups":int(profile.get("caffeine_cups", 2)),
+            "screen_mins":  int(profile.get("screen_mins", 30)),
+        }
+        raw = _be.submit_profile(be_profile)
 
-    age    = int(profile.get("age", 30))
-    stress = int(profile.get("stress", 5))
-    occ    = profile.get("occupation", "Other / Not Listed")
-    occ_t  = CAREER_STRESS.get(occ, 3)
-    eff    = round((stress + occ_t * 2) / 3)
+        # Normalise predictions: add "risk" key = likelihood for backward compat
+        preds = raw.get("predictions", [])
+        for p in preds:
+            p["risk"] = p.get("likelihood", 0.0)
 
-    results = []
-    for cond, cat, lo, hi, ms, base, sev in RISK_DATA:
-        if not (lo <= age <= hi): continue
-        if eff < ms: continue
-        risk = base * (1 + (eff - ms) * 0.08)
-        risk = min(0.95, risk * random.uniform(0.90, 1.10))
-        results.append({
-            "condition": cond,
-            "category":  cat,
-            "risk":      round(risk, 3),
-            "severity":  sev,
-        })
-
-    results.sort(key=lambda x: -x["risk"])
-
-    # Sleep score
-    score = 85 - (eff - 3) * 7 - max(0, age - 40) * 0.3
-    score = max(10, min(98, round(score + random.uniform(-4, 4))))
-
-    return {
-        "results":     results[:10],
-        "sleep_score": score,
-        "name":        profile.get("name", "Friend"),
-        "occupation":  occ,
-        "age":         age,
-        "stress":      stress,
-    }
+        return {
+            "results":     preds,
+            "sleep_score": raw.get("sleep_score", 50),
+            "name":        be_profile["user_name"],
+            "occupation":  be_profile["occupation"],
+            "age":         be_profile["age"],
+            "stress":      be_profile["stress"],
+            "summary":     raw.get("summary", ""),
+            "advice":      raw.get("advice", []),
+            "dataset_n":   raw.get("dataset_n", 0),
+            "model_type":  raw.get("model_type", ""),
+        }
+    except FileNotFoundError as e:
+        # Dataset missing — return clear error
+        return {
+            "results": [], "sleep_score": 0,
+            "name": profile.get("name","Friend"),
+            "occupation": "", "age": 0, "stress": 0,
+            "summary": str(e), "advice": [], "dataset_n": 0,
+            "model_type": "ERROR",
+        }
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return {
+            "results": [], "sleep_score": 0,
+            "name": profile.get("name","Friend"),
+            "occupation": "", "age": 0, "stress": 0,
+            "summary": f"Backend error: {e}", "advice": [], "dataset_n": 0,
+            "model_type": "ERROR",
+        }
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  COLOUR TOKENS
@@ -564,6 +586,53 @@ class SleepNerd(tk.Tk):
                       activebackground=BORDER2,
                       activeforeground=TEXT).pack(side="left", padx=(0,6))
 
+        # ── Sleep & lifestyle questions ───────────────────────────────────────
+        tk.Frame(f, bg=BORDER, height=1).pack(fill="x", pady=(16,14))
+        tk.Label(f, text="Sleep & Lifestyle", bg=CARD, fg=TEXT2,
+                 font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0,10))
+
+        def _slider_row(parent, label, var, lo, hi, lo_txt, hi_txt, resolution=1):
+            row = tk.Frame(parent, bg=CARD)
+            row.pack(fill="x", pady=5)
+            lbl_f = tk.Frame(row, bg=CARD)
+            lbl_f.pack(fill="x")
+            tk.Label(lbl_f, text=label, bg=CARD, fg=TEXT2,
+                     font=("Segoe UI", 9)).pack(side="left")
+            val_lbl = tk.Label(lbl_f, text=str(var.get()), bg=CARD,
+                                fg=ACCENT, font=("Segoe UI", 9, "bold"))
+            val_lbl.pack(side="right")
+            sc_row = tk.Frame(row, bg=CARD)
+            sc_row.pack(fill="x")
+            tk.Label(sc_row, text=lo_txt, bg=CARD, fg=TEXT3,
+                     font=("Segoe UI", 8), width=6, anchor="e").pack(side="left")
+            def _upd(v, vl=val_lbl): vl.config(text=v)
+            tk.Scale(sc_row, variable=var, from_=lo, to=hi, orient="horizontal",
+                     command=_upd, resolution=resolution,
+                     bg=CARD, fg=TEXT2, troughcolor=CARD2,
+                     activebackground=ACCENT, highlightthickness=0,
+                     font=("Segoe UI", 8), length=430, sliderlength=16,
+                     showvalue=False, relief="flat", sliderrelief="flat"
+                     ).pack(side="left", padx=6)
+            tk.Label(sc_row, text=hi_txt, bg=CARD, fg=TEXT3,
+                     font=("Segoe UI", 8)).pack(side="left")
+
+        self._sleep_hrs_var  = tk.DoubleVar(value=self.profile.get("sleep_hours",  7.0))
+        self._sleep_qual_var = tk.IntVar(   value=self.profile.get("sleep_quality", 3))
+        self._exercise_var   = tk.IntVar(   value=self.profile.get("exercise_days", 3))
+        self._caffeine_var   = tk.IntVar(   value=self.profile.get("caffeine_cups", 2))
+        self._screen_var     = tk.IntVar(   value=self.profile.get("screen_mins",  30))
+
+        _slider_row(f, "Average nightly sleep (hours)",
+                    self._sleep_hrs_var,  3, 12, "3h", "12h", resolution=0.5)
+        _slider_row(f, "Sleep quality  (1 = terrible  →  5 = excellent)",
+                    self._sleep_qual_var, 1, 5,  "poor", "great")
+        _slider_row(f, "Exercise days per week",
+                    self._exercise_var,   0, 7,  "none", "daily")
+        _slider_row(f, "Caffeinated drinks per day",
+                    self._caffeine_var,   0, 10, "0", "10+")
+        _slider_row(f, "Screen time in last hour before bed (minutes)",
+                    self._screen_var,     0, 60, "0 min", "60 min")
+
         # ── Stress slider ─────────────────────────────────────────────────────
         tk.Frame(f, bg=BORDER, height=1).pack(fill="x", pady=20)
         stress_hdr = tk.Frame(f, bg=CARD)
@@ -660,10 +729,15 @@ class SleepNerd(tk.Tk):
         self.update_idletasks()
 
         self.profile = {
-            "name":       name.title(),
-            "age":        int(age),
-            "occupation": self._sel_occ,
-            "stress":     self._stress_var.get(),
+            "name":          name.title(),
+            "age":           int(age),
+            "occupation":    self._sel_occ,
+            "stress":        self._stress_var.get(),
+            "sleep_hours":   float(self._sleep_hrs_var.get()),
+            "sleep_quality": int(self._sleep_qual_var.get()),
+            "exercise_days": int(self._exercise_var.get()),
+            "caffeine_cups": int(self._caffeine_var.get()),
+            "screen_mins":   int(self._screen_var.get()),
         }
         save_profile(self.profile)
 
@@ -738,23 +812,46 @@ class SleepNerd(tk.Tk):
                      font=("Segoe UI",9,"bold"), anchor="w").pack(side="left")
 
         # Key insight
-        if score >= 70:
-            insight = f"Your sleep profile is relatively healthy. Maintain your current habits and watch stress levels."
-            ic = "#22c55e"
+        # Key insight — use real backend summary if available
+        backend_summary = data.get("summary", "")
+        dataset_n       = data.get("dataset_n", 0)
+        model_type      = data.get("model_type", "")
+
+        if backend_summary:
+            insight = backend_summary
+        elif score >= 70:
+            insight = "Your sleep profile is relatively healthy. Maintain your current habits and watch stress levels."
         elif score >= 45:
-            insight = f"Moderate risk indicators detected. Small consistent improvements to sleep and stress will reduce long-term risk significantly."
-            ic = "#f59e0b"
+            insight = "Moderate risk indicators detected. Small consistent improvements to sleep and stress will reduce long-term risk significantly."
         else:
-            insight = f"Elevated risk profile detected. We recommend speaking with a healthcare professional about your sleep health."
-            ic = "#ef4444"
+            insight = "Elevated risk profile detected. We recommend speaking with a healthcare professional about your sleep health."
+
+        if score >= 70:   ic = "#22c55e"
+        elif score >= 45: ic = "#f59e0b"
+        else:             ic = "#ef4444"
 
         icard = tk.Frame(sum_col, bg=CARD,
                          highlightthickness=1, highlightbackground=ic)
         icard.pack(fill="x")
         tk.Frame(icard, bg=ic, width=4).pack(side="left", fill="y")
         tk.Label(icard, text=insight, bg=CARD, fg=TEXT2,
-                 font=("Segoe UI",10), wraplength=360,
+                 font=("Segoe UI", 10), wraplength=360,
                  justify="left", padx=16, pady=14).pack(side="left")
+
+        # Personalised advice from backend
+        advice = data.get("advice", [])
+        if advice:
+            tk.Label(sum_col, text="Recommendations",
+                     bg=BG2, fg=TEXT, font=("Segoe UI", 11, "bold")).pack(
+                         anchor="w", pady=(16, 6))
+            for tip in advice:
+                tip_row = tk.Frame(sum_col, bg=BG2)
+                tip_row.pack(fill="x", pady=2)
+                tk.Label(tip_row, text="→", bg=BG2, fg=ACCENT,
+                         font=("Segoe UI", 10)).pack(side="left", padx=(0, 8))
+                tk.Label(tip_row, text=tip, bg=BG2, fg=TEXT2,
+                         font=("Segoe UI", 9), wraplength=380,
+                         justify="left", anchor="w").pack(side="left", fill="x")
 
         # ── Divider ───────────────────────────────────────────────────────────
         tk.Frame(body, bg=BORDER, height=1).pack(
@@ -765,12 +862,14 @@ class SleepNerd(tk.Tk):
         rh.pack(fill="x", padx=60, pady=(24,4))
         tk.Label(rh, text="Predicted Health Risks",
                  bg=BG2, fg=TEXT, font=("Segoe UI",16,"bold")).pack(side="left")
-        tk.Label(rh,
-                 text="Relative increased likelihood vs. population baseline  •  stub data",
+        ds_n = data.get("dataset_n", 0)
+        ds_label = f"Trained on {ds_n:,} real records  •  {data.get('model_type','')}" if ds_n else "Real data model"
+        tk.Label(rh, text=ds_label,
                  bg=BG2, fg=TEXT3, font=("Segoe UI",8)).pack(
                      side="left", padx=12, anchor="s")
 
-        # Filter tabs
+        # Filter tabs — store risks as instance var so lambdas close over it correctly
+        self._all_risks = risks
         self._filt = tk.StringVar(value="All")
         tab_row = tk.Frame(body, bg=BG2)
         tab_row.pack(fill="x", padx=60, pady=(8,16))
@@ -780,7 +879,7 @@ class SleepNerd(tk.Tk):
                            bg=BG2, fg=TEXT2, selectcolor=CARD2,
                            activebackground=BG2, font=("Segoe UI",10),
                            relief="flat",
-                           command=lambda r=risks: self._render(r)
+                           command=lambda: self._render(self._all_risks)
                            ).pack(side="left", padx=(0,14))
 
         self._grid_container = tk.Frame(body, bg=BG2)
@@ -797,7 +896,7 @@ class SleepNerd(tk.Tk):
                  wraplength=860, justify="center").pack(pady=(28,6))
 
         ts = datetime.now().strftime("%B %d, %Y  %H:%M")
-        tk.Label(body, text=f"Generated  {ts}  •  stub backend",
+        tk.Label(body, text=f"Generated  {ts}  •  powered by real sleep health dataset",
                  bg=BG2, fg=TEXT3,
                  font=("Segoe UI",8)).pack(pady=(0,36))
 
