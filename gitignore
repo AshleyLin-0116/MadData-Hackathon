@@ -21,6 +21,7 @@ model/
 sleepnerd_profile.json
 user_logs.json
 test_logs.json
+*.json
 
 # IDE & OS
 .vscode/
