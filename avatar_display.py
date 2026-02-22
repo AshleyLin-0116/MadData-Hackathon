@@ -35,5 +35,5 @@ def display_avatar_for_log(log, avatar_dir: str = "avatars"):
     if log.predicted_stress is None:
         print("No stress score found on this log entry.")
         return
-    print(f"--- DISPLAYING: {log.avatar} ---")   # kept from placeholder
+    print(f"--- DISPLAYING: {log.avatar} ---")
     display_avatar(log.predicted_stress, avatar_dir)

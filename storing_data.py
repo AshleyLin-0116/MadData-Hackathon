@@ -11,6 +11,7 @@ class UserLog:
         self,
         name            : str,
         date            : str   = None,
+        occupation      : str = None,
         hours_slept     : float = None,
         sleep_quality   : int   = None,
         activity_level  : int   = None,
@@ -24,6 +25,7 @@ class UserLog:
         self.avatar             = None
         self.name               = name
         self.date               = date or datetime.today().strftime('%Y-%m-%d')
+        self.occupation         = occupation
         self.hours_slept        = hours_slept
         self.sleep_quality      = sleep_quality
         self.activity_level     = activity_level
@@ -39,6 +41,7 @@ class UserLog:
         return {
             "name"               : self.name,
             "date"               : self.date,
+            "occupation"         : self.occupation,
             "hours_slept"        : self.hours_slept,
             "sleep_quality"      : self.sleep_quality,
             "activity_level"     : self.activity_level,
@@ -115,6 +118,11 @@ class UserDataStore:
     def all_users(self) -> list[str]:
         return list(self._load_all().keys())
 
+VALID_OCCUPATIONS = [
+    'Nurse', 'Software Engineer', 'Doctor', 'Writer', 'Salesperson',
+    'Manager', 'Lawyer', 'Artist', 'Accountant', 'Sales Representative',
+    'Engineer', 'Scientist', 'Chef', 'Student', 'Teacher'
+]
 # Give feeback to user based on input
 def build_feature_vector(user_input: dict, scaler, feature_cols: list) -> np.ndarray:
     alias_map = {
@@ -145,6 +153,11 @@ def build_feature_vector(user_input: dict, scaler, feature_cols: list) -> np.nda
             f"Received fields (after mapping): {list(normalized.keys())}\n"
             f"Expected fields: {feature_cols}"
         )
+    occupation = user_input.get('occupation', None)
+    for occ in VALID_OCCUPATIONS:
+        col = f"occ_{occ.replace(' ', '_')}"
+        if col in feature_cols:
+            normalized[col] = 1 if occupation == occ else 0
     raw = np.array([[normalized[f] for f in feature_cols]])
     scaled = scaler.transform(raw)
     return scaled
@@ -246,6 +259,7 @@ def predict_stress_for_log(log: UserLog, model_path: str = "stress_model.pkl") -
     bundle = joblib.load(model_path)
 
     user_input = {
+        "occupation"    : log.occupation,
         "hours_slept"   : log.hours_slept,
         "sleep_quality" : log.sleep_quality,
         "activity_level": log.activity_level,
@@ -267,6 +281,7 @@ def log_user_entry(
     highest_heart_rate : int,
     study_load      : int,
     daily_steps     : int,
+    occupation      : str = None,
     date            : str = None,
     model_path      : str = "stress_model.pkl",
     store           : UserDataStore = None
@@ -274,7 +289,7 @@ def log_user_entry(
     if store is None:
         store = UserDataStore()
     log = UserLog(
-        name=name, date=date,
+        name=name, date=date, occupation=occupation,
         hours_slept=hours_slept, sleep_quality=sleep_quality,
         activity_level=activity_level, blood_pressure=blood_pressure,
         avg_heart_rate=avg_heart_rate, highest_heart_rate=highest_heart_rate,

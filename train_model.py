@@ -17,7 +17,7 @@ class Train_Model:
         self.sleep_health_clean = self.sleep_health[[
             'Sleep Duration', 'Quality of Sleep', 
             'Physical Activity Level', 'Stress Level', 
-            'Blood Pressure', 'Heart Rate', 'Daily Steps'
+            'Blood Pressure', 'Heart Rate', 'Daily Steps', 'Occupation'
         ]].copy()
         
         self.sleep_health_clean = self.sleep_health_clean.rename(columns={
@@ -27,7 +27,8 @@ class Train_Model:
             'Stress Level': 'stress_level',
             'Blood Pressure': 'blood_pressure',
             'Heart Rate': 'heart_level',
-            'Daily Steps': 'daily_steps'
+            'Daily Steps': 'daily_steps',
+            'Occupation': 'occupation'
         })
         
         # Parse Blood Pressure (taking the systolic/top number)
@@ -51,8 +52,18 @@ class Train_Model:
 
     def train_regression(self, dataset='sleep'):
         if dataset == 'sleep':
-            df = self.sleep_health_clean
-            feature_cols = ['sleep_duration', 'sleep_quality', 'activity_level', 'blood_pressure', 'heart_level', 'daily_steps']
+            df = self.sleep_health_clean.copy()
+            df = pd.get_dummies(df, columns=['occupation'], prefix='occ')
+            occ_cols = [c for c in df.columns if c.startswith('occ_')]
+            feature_cols = [
+                'sleep_duration',
+                'sleep_quality',
+                'activity_level',
+                'blood_pressure',
+                'heart_level',
+                'daily_steps'
+            ] + occ_cols
+            target = 'stress_level'
         else:
             df = self.student_stress_clean
             feature_cols = ['sleep_quality', 'num_headaches', 'academic_performance', 'study_load', 'num_extracurricular']
