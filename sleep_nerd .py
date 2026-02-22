@@ -14,6 +14,12 @@ from tkinter import ttk
 import math, json, os, random, threading, time
 from datetime import datetime
 
+try:
+    from PIL import Image, ImageTk
+    _PIL_OK = True
+except ImportError:
+    _PIL_OK = False
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  DATA
 # ─────────────────────────────────────────────────────────────────────────────
@@ -331,6 +337,68 @@ class RiskBar(tk.Canvas):
             self.create_rectangle(0,2, fw,6, fill=self._col, outline="")
 
     def stop(self): self._on = False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  AVATAR HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _avatar_state(sleep_score: int, health_score: int) -> str:
+    """
+    Choose avatar based on combined sleep + health scores.
+      overwhelmed : either score < 30
+      tired       : either score < 45
+      stressed    : either score < 65
+      happy       : both scores >= 65
+    """
+    if sleep_score < 30 or health_score < 30:
+        return "overwhelmed"
+    if sleep_score < 45 or health_score < 45:
+        return "tired"
+    if sleep_score < 65 or health_score < 65:
+        return "stressed"
+    return "happy"
+
+_AVATAR_META = {
+    "happy":      {"label": "Thriving 🌱",        "colour": "#4ade80"},
+    "tired":      {"label": "Running Low 😴",      "colour": "#94a3b8"},
+    "stressed":   {"label": "Under Pressure 😟",   "colour": "#facc15"},
+    "overwhelmed":{"label": "Overwhelmed 😵",       "colour": "#a855f7"},
+}
+
+# Module-level cache so PhotoImage refs aren't garbage collected
+_AVATAR_PHOTO_CACHE: dict = {}
+
+# tired has no dedicated image — use overwhelmed avatar for both
+_AVATAR_FILE = {
+    "happy":       "avatar_happy.png",
+    "stressed":    "avatar_stressed.png",
+    "tired":       "avatar_overwhelmed.png",
+    "overwhelmed": "avatar_overwhelmed.png",
+}
+
+def _load_avatar_photo(state: str, size: int = 160):
+    """Load and resize avatar PNG from images/ subfolder. Returns PhotoImage or None."""
+    if not _PIL_OK:
+        return None
+    key = (state, size)
+    if key in _AVATAR_PHOTO_CACHE:
+        return _AVATAR_PHOTO_CACHE[key]
+    filename   = _AVATAR_FILE.get(state, f"avatar_{state}.png")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # Check images/ subfolder first (project structure), then root as fallback
+    candidates = [
+        os.path.join(script_dir, "images", filename),
+        os.path.join(script_dir, filename),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            img = Image.open(path).convert("RGBA")
+            img.thumbnail((size, size), Image.LANCZOS)
+            photo = ImageTk.PhotoImage(img)
+            _AVATAR_PHOTO_CACHE[key] = photo
+            return photo
+    return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -768,9 +836,13 @@ class SleepNerd(tk.Tk):
         hero = tk.Frame(body, bg=BG2)
         hero.pack(fill="x", padx=60, pady=(40,0))
 
-        # Moon
-        moon_col = tk.Frame(hero, bg=BG2)
-        moon_col.pack(side="left", anchor="n")
+        # ── Left column: Moon (top) + Avatar (below) ─────────────────────────
+        left_col = tk.Frame(hero, bg=BG2)
+        left_col.pack(side="left", anchor="n")
+
+        # Moon stays exactly as before
+        moon_col = tk.Frame(left_col, bg=BG2)
+        moon_col.pack(anchor="center")
         moon = Moon(moon_col, size=120, bg=BG2)
         moon.pack()
         self._moons.append(moon)
@@ -778,6 +850,34 @@ class SleepNerd(tk.Tk):
                  font=("Segoe UI",17,"bold")).pack(pady=(10,0))
         tk.Label(moon_col, text=f"Report for {name}",
                  bg=BG2, fg=TEXT2, font=("Segoe UI",9)).pack()
+
+        # ── Avatar panel — fills the red-circle area below ────────────────────
+        avatar_state = _avatar_state(score, health_score)
+        meta         = _AVATAR_META[avatar_state]
+
+        av_frame = tk.Frame(left_col, bg=BG2)
+        av_frame.pack(anchor="center", pady=(16, 0))
+
+        photo = _load_avatar_photo(avatar_state, size=175)
+        if photo:
+            av_lbl = tk.Label(av_frame, image=photo, bg=BG2)
+            av_lbl.image = photo   # prevent GC
+            av_lbl.pack()
+        else:
+            # Fallback emoji if PIL not installed
+            fallback = {"happy":"🌱","tired":"😴","stressed":"😟","overwhelmed":"😵"}
+            tk.Label(av_frame, text=fallback.get(avatar_state,"🌙"),
+                     bg=BG2, font=("Segoe UI",56)).pack()
+
+        # State badge + label
+        badge_outer = tk.Frame(av_frame, bg=BG2)
+        badge_outer.pack(pady=(10, 0))
+        badge = tk.Frame(badge_outer, bg=meta["colour"])
+        badge.pack()
+        tk.Label(badge, text=meta["label"],
+                 bg=meta["colour"], fg="#0d0d1a",
+                 font=("Segoe UI", 9, "bold"),
+                 padx=12, pady=4).pack()
 
         # Score rings — sleep + health side by side
         rings_col = tk.Frame(hero, bg=BG2)
