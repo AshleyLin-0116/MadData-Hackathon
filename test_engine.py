@@ -1,5 +1,5 @@
 # test_engine.py
-from storing_data import log_user_entry, UserDataStore
+from model.storing_data import log_user_entry, UserDataStore
 
 # 1. Initialize the storage
 store = UserDataStore("test_logs.json")
