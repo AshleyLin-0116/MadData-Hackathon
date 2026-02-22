@@ -13,7 +13,7 @@ def get_avatar_state(stress_score: float) -> str:
 
 def display_avatar(stress_score: float, avatar_dir: str = "avatars"):
     state    = get_avatar_state(stress_score)
-    filename = f"{state}.png"
+    filename = f"avatar_{state}.png"
     filepath = os.path.join(avatar_dir, filename)
     print(f"\nStress score : {stress_score}")
     print(f"Avatar state : {state.upper()}")
@@ -22,10 +22,10 @@ def display_avatar(stress_score: float, avatar_dir: str = "avatars"):
         print(f"ERROR: Could not find {filepath}")
         print(f"Make sure your PNG files are in the '{avatar_dir}' folder")
         print(f"Expected files:")
-        print(f"  ") # avatar_happy
-        print(f"  ") # avatar_tired
-        print(f"  ") # avatar_stressed
-        print(f"  ") # avatar_overwhelmed
+        print(f"  avatar_happy.png")
+        print(f"  avatar_tired.png")
+        print(f"  avatar_stressed.png")
+        print(f"  avatar_overwhelmed.png")
         return
     img = Image.open(filepath)
     img.show()
