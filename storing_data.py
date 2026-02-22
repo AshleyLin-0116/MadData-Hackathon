@@ -3,6 +3,7 @@ import os
 import joblib
 import numpy as np
 from datetime import datetime
+from avatar import get_feedback_for_log
 
 # Represents one daily log entry for a user
 class UserLog: 
@@ -31,7 +32,7 @@ class UserLog:
         self.study_load         = study_load
         self.daily_steps        = daily_steps
         self.predicted_stress   = predicted_stress
-        self.avatar             = get_avatar_state(predicted_stress) if predicted_stress is not None else None
+
 
     def to_dict(self) -> dict:
         return {
@@ -113,26 +114,146 @@ class UserDataStore:
     def all_users(self) -> list[str]:
         return list(self._load_all().keys())
 
+# Give feeback to user based on input
+def build_feature_vector(user_input: dict, scaler, feature_cols: list) -> np.ndarray:
+    alias_map = {
+        'hours_slept'     : 'sleep_duration',
+        'sleep_quality'   : 'sleep_quality',
+        'activity_level'  : 'activity_level',
+        'blood_pressure'  : 'blood_pressure',
+        'avg_heart_rate'  : 'heart_level',
+        'daily_steps'     : 'daily_steps',
+        'hoursSlept'      : 'sleep_duration',
+        'sleepQuality'    : 'sleep_quality',
+        'activityLevel'   : 'activity_level',
+        'bloodPressure'   : 'blood_pressure',
+        'avgHeartRate'    : 'heart_level',
+        'dailySteps'      : 'daily_steps',
+        'sleep_duration'  : 'sleep_duration',
+        'heart_level'     : 'heart_level',
+    }
+    normalized = {}
+    for key, value in user_input.items():
+        model_key = alias_map.get(key)
+        if model_key:
+            normalized[model_key] = value
+    missing = [f for f in feature_cols if f not in normalized]
+    if missing:
+        raise ValueError(
+            f"Missing required fields: {missing}\n"
+            f"Received fields (after mapping): {list(normalized.keys())}\n"
+            f"Expected fields: {feature_cols}"
+        )
+    raw = np.array([[normalized[f] for f in feature_cols]])
+    scaled = scaler.transform(raw)
+    return scaled
+
+def get_feedback(
+    stress_score       : float,
+    hours_slept        : float,
+    sleep_quality      : int,
+    activity_level     : int,
+    study_load         : int,
+    avg_heart_rate     : int,
+    daily_steps        : int,
+    highest_heart_rate : int = None
+) -> list:
+    feedback = []
+    if hours_slept < 6:
+        feedback.append({
+            "priority": 1,
+            "category": "sleep",
+            "tip": f"You only slept {hours_slept} hours. Aim for at least 7-8 hours to reduce stress significantly."
+        })
+    elif hours_slept < 7:
+        feedback.append({
+            "priority": 2,
+            "category": "sleep",
+            "tip": f"You slept {hours_slept} hours. Getting closer to 8 hours could help lower your stress."
+        })
+    if sleep_quality <= 3:
+        feedback.append({
+            "priority": 1,
+            "category": "sleep_quality",
+            "tip": "Your sleep quality was poor. Try avoiding screens 30 minutes before bed."
+        })
+    if activity_level < 20:
+        feedback.append({
+            "priority": 2,
+            "category": "activity",
+            "tip": "Low activity today. Even a 20-minute walk can reduce stress hormones."
+        })
+    if daily_steps < 5000:
+        feedback.append({
+            "priority": 3,
+            "category": "steps",
+            "tip": f"Only {daily_steps} steps today. Try to hit 7,000-10,000 steps for better mental health."
+        })
+    if study_load >= 4:
+        feedback.append({
+            "priority": 2,
+            "category": "study",
+            "tip": "Heavy study load detected. Try the Pomodoro technique — 25 min focused work, 5 min break."
+        })
+    if avg_heart_rate > 90:
+        feedback.append({
+            "priority": 1,
+            "category": "heart_rate",
+            "tip": f"Your average heart rate of {avg_heart_rate} bpm is elevated. Try a 5-minute breathing exercise."
+        })
+    if highest_heart_rate and highest_heart_rate > 130:
+        feedback.append({
+            "priority": 2,
+            "category": "heart_rate",
+            "tip": f"Your peak heart rate hit {highest_heart_rate} bpm. Make sure high intensity was intentional exercise and not anxiety."
+        })
+    if stress_score > 8:
+        feedback.append({
+            "priority": 1,
+            "category": "general",
+            "tip": "Your overall stress is very high today. Prioritize rest above everything else tonight."
+        })
+    if stress_score <= 4 and hours_slept >= 7 and activity_level >= 30:
+        feedback.append({
+            "priority": 0,
+            "category": "positive",
+            "tip": "Excellent day! Good sleep and activity are keeping your stress low. Keep it up!"
+        })
+    feedback.sort(key=lambda x: x['priority'])
+    if not feedback:
+        feedback.append({
+            "priority": 0,
+            "category": "general",
+            "tip": "You're doing well overall. Stay consistent with your healthy habits!"
+        })
+    return feedback
+
+def get_feedback_for_log(log) -> list:
+    return get_feedback(
+        stress_score       = log.predicted_stress,
+        hours_slept        = log.hours_slept,
+        sleep_quality      = log.sleep_quality,
+        activity_level     = log.activity_level,
+        study_load         = log.study_load,
+        avg_heart_rate     = log.avg_heart_rate,
+        daily_steps        = log.daily_steps,
+        highest_heart_rate = log.highest_heart_rate
+    )
+
 # Predicts stress level based on user input
 def predict_stress_for_log(log: UserLog, model_path: str = "stress_model.pkl") -> float:
-    bundle  = joblib.load(model_path)
-    model   = bundle['model']
-    scaler  = bundle['scaler']
-    features = bundle['feature_cols']
+    bundle = joblib.load(model_path)
 
-    field_map = {
-        'sleep_duration' : log.hours_slept,
-        'sleep_quality'  : log.sleep_quality,
-        'activity_level' : log.activity_level,
-        'blood_pressure' : log.blood_pressure,
-        'heart_level'    : log.avg_heart_rate,
-        'daily_steps'    : log.daily_steps
+    user_input = {
+        "hours_slept"   : log.hours_slept,
+        "sleep_quality" : log.sleep_quality,
+        "activity_level": log.activity_level,
+        "blood_pressure": log.blood_pressure,
+        "avg_heart_rate": log.avg_heart_rate,
+        "daily_steps"   : log.daily_steps
     }
-
-    raw = np.array([[field_map[f] for f in features]])
-    scaled = scaler.transform(raw)
-    score = model.predict(scaled)[0]
-
+    scaled = build_feature_vector(user_input, bundle['scaler'], bundle['feature_cols'])
+    score  = bundle['model'].predict(scaled)[0]
     return float(np.clip(round(score, 1), 1.0, 10.0))
 
 def log_user_entry(
@@ -160,9 +281,22 @@ def log_user_entry(
     )
     log.predicted_stress = predict_stress_for_log(log, model_path)
     log.avatar = get_avatar_state(log.predicted_stress)
+    tips = get_feedback_for_log(log)
+    for tip in tips:
+        print(f"  [{tip['category']}] {tip['tip']}")
     store.save(log)
     print(f"\nResult for {name}:")
     print(f"  Predicted stress : {log.predicted_stress}")
     print(f"  Avatar state     : {log.avatar['state']}")
     print(f"  Message          : {log.avatar['message']}")
     return log
+
+if __name__ == "__main__":
+    tips = get_feedback(
+        stress_score=7.8, hours_slept=5.5, sleep_quality=2,
+        activity_level=10, study_load=4, avg_heart_rate=95,
+        daily_steps=3000, highest_heart_rate=125
+    )
+    print("Feedback tips:")
+    for tip in tips:
+        print(f"  [{tip['category']}] {tip['tip']}")
