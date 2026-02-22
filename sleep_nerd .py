@@ -291,11 +291,11 @@ class ScoreRing(tk.Canvas):
         self.delete("all")
         s = self._size; cx = cy = s/2; r = s/2 - 16
         self.create_oval(cx-r, cy-r, cx+r, cy+r, outline=BORDER2, width=9)
-        ext = (self._cur/100)*270
+        ext = (self._cur/100)*359.9
         col = "#22c55e" if self._cur>=70 else "#f59e0b" if self._cur>=45 else "#ef4444"
         if ext > 0:
             self.create_arc(cx-r, cy-r, cx+r, cy+r,
-                            start=135, extent=-ext,
+                            start=90, extent=-ext,
                             outline=col, width=9, style="arc")
         self.create_text(cx, cy-8,  text=str(int(self._cur)),
                          fill=col, font=("Segoe UI",32,"bold"))
