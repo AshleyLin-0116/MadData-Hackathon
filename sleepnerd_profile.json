@@ -1,11 +1,11 @@
 {
   "name": "Ben",
-  "age": 80,
+  "age": 90,
   "occupation": "Physician / Doctor",
   "stress": 7,
   "sleep_hours": 5.5,
   "sleep_quality": 2,
-  "exercise_days": 4,
-  "caffeine_cups": 8,
+  "exercise_days": 5,
+  "caffeine_cups": 1,
   "screen_mins": 26
 }

@@ -291,11 +291,11 @@ class ScoreRing(tk.Canvas):
         self.delete("all")
         s = self._size; cx = cy = s/2; r = s/2 - 16
         self.create_oval(cx-r, cy-r, cx+r, cy+r, outline=BORDER2, width=9)
-        ext = (self._cur/100)*359.9
+        ext = (self._cur/100)*270
         col = "#22c55e" if self._cur>=70 else "#f59e0b" if self._cur>=45 else "#ef4444"
         if ext > 0:
             self.create_arc(cx-r, cy-r, cx+r, cy+r,
-                            start=90, extent=-ext,
+                            start=135, extent=-ext,
                             outline=col, width=9, style="arc")
         self.create_text(cx, cy-8,  text=str(int(self._cur)),
                          fill=col, font=("Segoe UI",32,"bold"))
@@ -813,7 +813,7 @@ class SleepNerd(tk.Tk):
                                 font=("Segoe UI",9))
         self._g_err.pack(side="left")
 
-        tk.Button(sub_row, text="Analyze My Sleep Health  →",
+        tk.Button(sub_row, text="Analyse My Sleep Health  →",
                   command=self._submit,
                   bg=ACCENT, fg="#ffffff",
                   font=("Segoe UI",12,"bold"),
@@ -858,7 +858,7 @@ class SleepNerd(tk.Tk):
         if ne or ae or oe:
             self._g_err.config(text="Please fix the errors above.")
             return
-        self._g_err.config(text="Analyzing…")
+        self._g_err.config(text="Analysing…")
         self.update_idletasks()
 
         self.profile = {
@@ -1046,10 +1046,10 @@ class SleepNerd(tk.Tk):
 
         # Filter tabs — store risks as instance var so lambdas close over it correctly
         self._all_risks = risks
-        self._filt = tk.StringVar(value="All")
+        self._filt = tk.StringVar(value="Physical")
         tab_row = tk.Frame(body, bg=BG2)
         tab_row.pack(fill="x", padx=60, pady=(8,4))
-        for opt in ("All", "Physical", "Mental"):
+        for opt in ("Physical", "Mental"):
             tk.Radiobutton(tab_row, text=opt,
                            variable=self._filt, value=opt,
                            bg=BG2, fg=TEXT2, selectcolor=CARD2,
@@ -1058,10 +1058,10 @@ class SleepNerd(tk.Tk):
                            command=lambda: self._render(self._all_risks)
                            ).pack(side="left", padx=(0,14))
 
-        # Legend: border colours
+        # Legend: colours match actual Physical=green, Mental=purple
         legend = tk.Frame(tab_row, bg=BG2)
         legend.pack(side="right")
-        for lcol, ltxt in ((ACCENT, "Mental"), ("#20aa66", "Physical")):
+        for lcol, ltxt in (("#a855f7", "Mental"), ("#20aa66", "Physical")):
             lf = tk.Frame(legend, bg=BG2)
             lf.pack(side="left", padx=(0,12))
             tk.Frame(lf, bg=lcol, width=12, height=12).pack(side="left", padx=(0,5))
@@ -1095,12 +1095,19 @@ class SleepNerd(tk.Tk):
             except: pass
         self._bars = []
 
-        filt = self._filt.get()
-        shown = [r for r in risks
-                 if filt == "All" or r["category"] == filt]
+        filt     = self._filt.get()
+        PHYS_COL = "#20aa66"   # green  — Physical
+        MENT_COL = "#a855f7"   # purple — Mental
+        # Physical icon = 🫀 (heart), Mental icon = 🧠 (brain)
+        CAT_ICON = {"Physical": "🫀", "Mental": "🧠"}
+        SEV_ICON = {"critical": "★", "high": "▲", "moderate": "◆", "low": "●"}
 
-        SEV_ICON = {"critical":"★","high":"▲","moderate":"◆","low":"●"}
+        def _cat(r): return r.get("category", "").strip()
 
+        accent = PHYS_COL if filt == "Physical" else MENT_COL
+        shown  = [r for r in risks if _cat(r) == filt]
+
+        # Two-column grid — cards side by side, all visible
         grid = tk.Frame(self._grid_container, bg=BG2)
         grid.pack(fill="x")
         grid.columnconfigure(0, weight=1)
@@ -1110,56 +1117,48 @@ class SleepNerd(tk.Tk):
             row, col = divmod(idx, 2)
             sev  = r["severity"]
             cc   = SEV.get(sev, SEV["moderate"])
-            cat  = r["category"]
-            # Distinct border colour per category: blue=Mental, green=Physical
-            cat_col   = ACCENT if cat == "Mental" else "#20aa66"
-            border_col = cat_col   # card border reflects category, not just severity
-            padl = (0, 10) if col == 0 else (10, 0)
+            cat  = _cat(r)
+            padl = (0, 8) if col == 0 else (8, 0)
 
             rc = tk.Frame(grid, bg=CARD,
-                          highlightthickness=2, highlightbackground=border_col)
-            rc.grid(row=row, column=col, sticky="nsew",
-                    padx=padl, pady=7)
+                          highlightthickness=2, highlightbackground=accent)
+            rc.grid(row=row, column=col, sticky="nsew", padx=padl, pady=6)
 
-            # Left colour stripe — severity colour
+            # Left severity stripe
             tk.Frame(rc, bg=cc, width=5).pack(side="left", fill="y")
 
             bdy = tk.Frame(rc, bg=CARD)
-            bdy.pack(side="left", fill="both", expand=True, padx=18, pady=14)
+            bdy.pack(side="left", fill="both", expand=True, padx=14, pady=12)
 
-            # Title row
+            # Title row: category icon + condition name in category colour
             tr = tk.Frame(bdy, bg=CARD)
             tr.pack(fill="x")
-            tk.Label(tr,
-                     text=f"{SEV_ICON.get(sev,'●')}  {r['condition']}",
-                     bg=CARD, fg=cc,
-                     font=("Segoe UI",12,"bold"),
-                     anchor="w").pack(side="left")
+            cat_icon = CAT_ICON.get(cat, "●")
+            tk.Label(tr, text=f"{cat_icon}  {r['condition']}",
+                     bg=CARD, fg=accent,
+                     font=("Segoe UI", 11, "bold"), anchor="w").pack(side="left")
 
-            # Severity badge
+            # Severity badge (right)
             b2 = tk.Frame(tr, bg=cc)
             b2.pack(side="right")
             tk.Label(b2, text=sev.upper(), bg=cc, fg="#fff",
-                     font=("Segoe UI",7,"bold"),
-                     padx=7, pady=3).pack()
+                     font=("Segoe UI", 7, "bold"), padx=7, pady=3).pack()
 
-            # Category chip — always blue for Mental, green for Physical
-            ch = tk.Frame(bdy, bg=cat_col)
-            ch.pack(anchor="w", pady=(7,0))
-            tk.Label(ch, text=cat.upper(), bg=cat_col,
-                     fg="#fff", font=("Segoe UI",7,"bold"),
-                     padx=6, pady=2).pack()
+            # Category chip in category colour
+            ch = tk.Frame(bdy, bg=accent)
+            ch.pack(anchor="w", pady=(6, 0))
+            tk.Label(ch, text=cat.upper(), bg=accent, fg="#fff",
+                     font=("Segoe UI", 7, "bold"), padx=6, pady=2).pack()
 
-            # Bar + pct
+            # Risk percentage + bar
             likelihood = r.get("likelihood", r.get("risk", 0.0))
             pct = round(likelihood * 100)
             tk.Label(bdy, text=f"+{pct}% relative risk increase",
-                     bg=CARD, fg=TEXT2, font=("Segoe UI",9)
-                     ).pack(anchor="w", pady=(10,3))
-            bar = RiskBar(bdy, likelihood, sev, w=300)
+                     bg=CARD, fg=TEXT2, font=("Segoe UI", 9)
+                     ).pack(anchor="w", pady=(8, 2))
+            bar = RiskBar(bdy, likelihood, sev, w=280)
             bar.pack(anchor="w")
             self._bars.append(bar)
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
