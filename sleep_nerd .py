@@ -124,21 +124,22 @@ def mock_backend(profile):
             p["risk"] = p.get("likelihood", 0.0)
 
         return {
-            "results":     preds,
-            "sleep_score": raw.get("sleep_score", 50),
-            "name":        be_profile["user_name"],
-            "occupation":  be_profile["occupation"],
-            "age":         be_profile["age"],
-            "stress":      be_profile["stress"],
-            "summary":     raw.get("summary", ""),
-            "advice":      raw.get("advice", []),
-            "dataset_n":   raw.get("dataset_n", 0),
-            "model_type":  raw.get("model_type", ""),
+            "results":      preds,
+            "sleep_score":  raw.get("sleep_score",  50),
+            "health_score": raw.get("health_score", 50),
+            "name":         be_profile["user_name"],
+            "occupation":   be_profile["occupation"],
+            "age":          be_profile["age"],
+            "stress":       be_profile["stress"],
+            "summary":      raw.get("summary",    ""),
+            "advice":       raw.get("advice",     []),
+            "dataset_n":    raw.get("dataset_n",   0),
+            "model_type":   raw.get("model_type", ""),
         }
     except FileNotFoundError as e:
         # Dataset missing — return clear error
         return {
-            "results": [], "sleep_score": 0,
+            "results": [], "sleep_score": 0, "health_score": 0,
             "name": profile.get("name","Friend"),
             "occupation": "", "age": 0, "stress": 0,
             "summary": str(e), "advice": [], "dataset_n": 0,
@@ -147,7 +148,7 @@ def mock_backend(profile):
     except Exception as e:
         import traceback; traceback.print_exc()
         return {
-            "results": [], "sleep_score": 0,
+            "results": [], "sleep_score": 0, "health_score": 0,
             "name": profile.get("name","Friend"),
             "occupation": "", "age": 0, "stress": 0,
             "summary": f"Backend error: {e}", "advice": [], "dataset_n": 0,
@@ -755,12 +756,13 @@ class SleepNerd(tk.Tk):
         body = self._page()
         self._nav(body, show_back=True)
 
-        name  = data["name"]
-        score = data["sleep_score"]
-        risks = data["results"]
-        occ   = data["occupation"]
-        age   = data["age"]
-        stress= data["stress"]
+        name         = data["name"]
+        score        = data["sleep_score"]
+        health_score = data.get("health_score", 50)
+        risks        = data["results"]
+        occ          = data["occupation"]
+        age          = data["age"]
+        stress       = data["stress"]
 
         # ── Hero row ─────────────────────────────────────────────────────────
         hero = tk.Frame(body, bg=BG2)
@@ -777,12 +779,22 @@ class SleepNerd(tk.Tk):
         tk.Label(moon_col, text=f"Report for {name}",
                  bg=BG2, fg=TEXT2, font=("Segoe UI",9)).pack()
 
-        # Score ring
-        ring_col = tk.Frame(hero, bg=BG2)
-        ring_col.pack(side="left", padx=(52,0), anchor="n")
-        ring = ScoreRing(ring_col, score, size=170)
+        # Score rings — sleep + health side by side
+        rings_col = tk.Frame(hero, bg=BG2)
+        rings_col.pack(side="left", padx=(40,0), anchor="n")
+
+        ring_sl = tk.Frame(rings_col, bg=BG2)
+        ring_sl.pack(side="left", padx=(0,18))
+        ring = ScoreRing(ring_sl, score, size=155)
         ring.pack()
-        tk.Label(ring_col, text="sleep health score",
+        tk.Label(ring_sl, text="sleep score",
+                 bg=BG2, fg=TEXT3, font=("Segoe UI",8)).pack(pady=(4,0))
+
+        ring_hl = tk.Frame(rings_col, bg=BG2)
+        ring_hl.pack(side="left")
+        ring_h = ScoreRing(ring_hl, health_score, size=155)
+        ring_h.pack()
+        tk.Label(ring_hl, text="overall health score",
                  bg=BG2, fg=TEXT3, font=("Segoe UI",8)).pack(pady=(4,0))
 
         # Profile summary + tips
@@ -872,7 +884,7 @@ class SleepNerd(tk.Tk):
         self._all_risks = risks
         self._filt = tk.StringVar(value="All")
         tab_row = tk.Frame(body, bg=BG2)
-        tab_row.pack(fill="x", padx=60, pady=(8,16))
+        tab_row.pack(fill="x", padx=60, pady=(8,4))
         for opt in ("All", "Physical", "Mental"):
             tk.Radiobutton(tab_row, text=opt,
                            variable=self._filt, value=opt,
@@ -882,8 +894,18 @@ class SleepNerd(tk.Tk):
                            command=lambda: self._render(self._all_risks)
                            ).pack(side="left", padx=(0,14))
 
+        # Legend: border colours
+        legend = tk.Frame(tab_row, bg=BG2)
+        legend.pack(side="right")
+        for lcol, ltxt in ((ACCENT, "Mental"), ("#20aa66", "Physical")):
+            lf = tk.Frame(legend, bg=BG2)
+            lf.pack(side="left", padx=(0,12))
+            tk.Frame(lf, bg=lcol, width=12, height=12).pack(side="left", padx=(0,5))
+            tk.Label(lf, text=ltxt, bg=BG2, fg=TEXT3,
+                     font=("Segoe UI",8)).pack(side="left")
+
         self._grid_container = tk.Frame(body, bg=BG2)
-        self._grid_container.pack(fill="x", padx=60)
+        self._grid_container.pack(fill="x", padx=60, pady=(8,0))
         self._render(risks)
 
         # ── Disclaimer ────────────────────────────────────────────────────────
@@ -924,15 +946,19 @@ class SleepNerd(tk.Tk):
             row, col = divmod(idx, 2)
             sev  = r["severity"]
             cc   = SEV.get(sev, SEV["moderate"])
+            cat  = r["category"]
+            # Distinct border colour per category: blue=Mental, green=Physical
+            cat_col   = ACCENT if cat == "Mental" else "#20aa66"
+            border_col = cat_col   # card border reflects category, not just severity
             padl = (0, 10) if col == 0 else (10, 0)
 
             rc = tk.Frame(grid, bg=CARD,
-                          highlightthickness=1, highlightbackground=cc)
+                          highlightthickness=2, highlightbackground=border_col)
             rc.grid(row=row, column=col, sticky="nsew",
                     padx=padl, pady=7)
 
-            # Left colour stripe
-            tk.Frame(rc, bg=cc, width=4).pack(side="left", fill="y")
+            # Left colour stripe — severity colour
+            tk.Frame(rc, bg=cc, width=5).pack(side="left", fill="y")
 
             bdy = tk.Frame(rc, bg=CARD)
             bdy.pack(side="left", fill="both", expand=True, padx=18, pady=14)
@@ -953,20 +979,20 @@ class SleepNerd(tk.Tk):
                      font=("Segoe UI",7,"bold"),
                      padx=7, pady=3).pack()
 
-            # Category chip
-            cat_col = ACCENT if r["category"]=="Mental" else "#20aa66"
+            # Category chip — always blue for Mental, green for Physical
             ch = tk.Frame(bdy, bg=cat_col)
             ch.pack(anchor="w", pady=(7,0))
-            tk.Label(ch, text=r["category"].upper(), bg=cat_col,
+            tk.Label(ch, text=cat.upper(), bg=cat_col,
                      fg="#fff", font=("Segoe UI",7,"bold"),
                      padx=6, pady=2).pack()
 
             # Bar + pct
-            pct = round(r["risk"]*100)
+            likelihood = r.get("likelihood", r.get("risk", 0.0))
+            pct = round(likelihood * 100)
             tk.Label(bdy, text=f"+{pct}% relative risk increase",
                      bg=CARD, fg=TEXT2, font=("Segoe UI",9)
                      ).pack(anchor="w", pady=(10,3))
-            bar = RiskBar(bdy, r["risk"], sev, w=300)
+            bar = RiskBar(bdy, likelihood, sev, w=300)
             bar.pack(anchor="w")
             self._bars.append(bar)
 
