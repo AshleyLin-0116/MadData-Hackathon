@@ -3,7 +3,7 @@ import os
 import joblib
 import numpy as np
 from datetime import datetime
-from avatar_display import get_avatar_state, display_avatar_for_log
+from model.avatar_display import get_avatar_state, display_avatar_for_log
 
 # Represents one daily log entry for a user
 class UserLog: 

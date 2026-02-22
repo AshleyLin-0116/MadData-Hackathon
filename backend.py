@@ -56,12 +56,13 @@ def _train():
     from sklearn.preprocessing import StandardScaler
     from sklearn.pipeline import Pipeline
 
-    csv = "expanded_sleep_health_dataset.csv"
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    csv = os.path.join(BASE_DIR, "data", "expanded_sleep_health_dataset.csv")
     if not os.path.exists(csv):
         raise FileNotFoundError(
-            f"Dataset not found: {csv}\n"
-            "Place expanded_sleep_health_dataset.csv in the same folder as backend.py."
-        )
+        f"Dataset not found: {csv}\n"
+        "Place expanded_sleep_health_dataset.csv in the MadData-Hackathon/data/ folder."
+    )
 
     df = pd.read_csv(csv)
     _DATASET_N = len(df)

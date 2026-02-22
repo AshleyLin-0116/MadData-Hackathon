@@ -1,11 +1,11 @@
 {
   "name": "Ben",
-  "age": 19,
+  "age": 80,
   "occupation": "Attorney / Lawyer",
-  "stress": 9,
-  "sleep_hours": 8.0,
+  "stress": 1,
+  "sleep_hours": 8.5,
   "sleep_quality": 3,
   "exercise_days": 7,
   "caffeine_cups": 1,
-  "screen_mins": 42
+  "screen_mins": 50
 }
