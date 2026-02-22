@@ -71,22 +71,6 @@ class Train_Model:
     })
     sleep_health_clean['blood_pressure'] = (sleep_health_clean['blood_pressure'].str.split('/').str[0].astype(float))
     # Training the Model
-    def bin_stress(series, n_levels=10):
-        """
-        Converts a numeric stress column into 3 bins:
-          0 = Low    (bottom third)
-          1 = Medium (middle third)
-          2 = High   (top third)
-
-        Pass n_levels=5 if your column runs 1-5, n_levels=10 if it runs 1-10.
-        """
-        if n_levels == 10:
-            return pd.cut(series, bins=[0, 3, 7, 10], labels=[0, 1, 2]).astype(int)
-        else:
-            return pd.cut(series, bins=[0, 2, 3, 5], labels=[0, 1, 2]).astype(int)
-    sleep_health_clean['stress_bin'] = bin_stress(sleep_health_clean['stress_level'], n_levels=10)
-    student_stress_clean['stress_bin'] = bin_stress(student_stress_clean['stress_level'], n_levels=5)
-
     def train_regression(self, dataset='sleep'):
         print(f"\n{'='*55}")
         print(f"  REGRESSION TRAINING  --  dataset: {dataset}")
