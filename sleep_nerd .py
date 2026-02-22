@@ -813,7 +813,7 @@ class SleepNerd(tk.Tk):
                                 font=("Segoe UI",9))
         self._g_err.pack(side="left")
 
-        tk.Button(sub_row, text="Analyse My Sleep Health  →",
+        tk.Button(sub_row, text="Analyze My Sleep Health  →",
                   command=self._submit,
                   bg=ACCENT, fg="#ffffff",
                   font=("Segoe UI",12,"bold"),
@@ -858,7 +858,7 @@ class SleepNerd(tk.Tk):
         if ne or ae or oe:
             self._g_err.config(text="Please fix the errors above.")
             return
-        self._g_err.config(text="Analysing…")
+        self._g_err.config(text="Analyzing…")
         self.update_idletasks()
 
         self.profile = {
