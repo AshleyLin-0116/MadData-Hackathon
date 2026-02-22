@@ -1,5 +1,5 @@
-from PIL import Image
 import os
+from PIL import Image
 
 def get_avatar_state(stress_score: float) -> str:
     if stress_score <= 3.5:

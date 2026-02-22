@@ -3,7 +3,7 @@ import os
 import joblib
 import numpy as np
 from datetime import datetime
-from avatar import get_feedback_for_log
+from avatar_display import get_avatar_state, display_avatar_for_log
 
 # Represents one daily log entry for a user
 class UserLog: 
@@ -21,6 +21,7 @@ class UserLog:
         daily_steps     : int   = None,
         predicted_stress: float = None
     ):
+        self.avatar             = None
         self.name               = name
         self.date               = date or datetime.today().strftime('%Y-%m-%d')
         self.hours_slept        = hours_slept
@@ -57,7 +58,7 @@ class UserLog:
     def __repr__(self):
         return (
             f"UserLog({self.name} | {self.date} | "
-            f"stress={self.predicted_stress} | avatar={self.avatar['state'] if self.avatar else 'N/A'})"
+            f"stress={self.predicted_stress} | avatar={self.avatar if self.avatar else 'N/A'})"
         )
 
 # Saves and loads user log entries to a local JSON file
@@ -285,18 +286,5 @@ def log_user_entry(
     for tip in tips:
         print(f"  [{tip['category']}] {tip['tip']}")
     store.save(log)
-    print(f"\nResult for {name}:")
-    print(f"  Predicted stress : {log.predicted_stress}")
-    print(f"  Avatar state     : {log.avatar['state']}")
-    print(f"  Message          : {log.avatar['message']}")
+    display_avatar_for_log(log)
     return log
-
-if __name__ == "__main__":
-    tips = get_feedback(
-        stress_score=7.8, hours_slept=5.5, sleep_quality=2,
-        activity_level=10, study_load=4, avg_heart_rate=95,
-        daily_steps=3000, highest_heart_rate=125
-    )
-    print("Feedback tips:")
-    for tip in tips:
-        print(f"  [{tip['category']}] {tip['tip']}")
