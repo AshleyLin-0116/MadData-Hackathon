@@ -159,6 +159,7 @@ def log_user_entry(
         study_load=study_load, daily_steps=daily_steps
     )
     log.predicted_stress = predict_stress_for_log(log, model_path)
+    log.avatar = get_avatar_state(log.predicted_stress)
     store.save(log)
     print(f"\nResult for {name}:")
     print(f"  Predicted stress : {log.predicted_stress}")
