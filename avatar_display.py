@@ -1,38 +1,14 @@
-import os
-from PIL import Image
+# avatar_display.py (Placeholder for designer's work)
 
-def get_avatar_state(stress_score: float) -> str:
-    if stress_score <= 3.5:
-        return "happy"
-    elif stress_score <= 6:
-        return "tired"
-    elif stress_score <= 8:
-        return "stressed"
+def get_avatar_state(stress_score):
+    """Returns a description of the avatar based on stress."""
+    if stress_score > 7:
+        return "Tired/Stressed Avatar"
+    elif stress_score > 4:
+        return "Neutral Avatar"
     else:
-        return "overwhelmed"
+        return "Energetic/Happy Avatar"
 
-def display_avatar(stress_score: float, avatar_dir: str = "avatars"):
-    state    = get_avatar_state(stress_score)
-    filename = f"{state}.png"
-    filepath = os.path.join(avatar_dir, filename)
-    print(f"\nStress score : {stress_score}")
-    print(f"Avatar state : {state.upper()}")
-    print(f"Loading      : {filepath}")
-    if not os.path.exists(filepath):
-        print(f"ERROR: Could not find {filepath}")
-        print(f"Make sure your PNG files are in the '{avatar_dir}' folder")
-        print(f"Expected files:")
-        print(f"  ") # avatar_happy
-        print(f"  ") # avatar_tired
-        print(f"  ") # avatar_stressed
-        print(f"  ") # avatar_overwhelmed
-        return
-    img = Image.open(filepath)
-    img.show()
-    print(f"Displaying avatar: {filename}")
-
-def display_avatar_for_log(log, avatar_dir: str = "avatars"):
-    if log.predicted_stress is None:
-        print("No stress score found on this log entry.")
-        return
-    display_avatar(log.predicted_stress, avatar_dir)
+def display_avatar_for_log(log):
+    """Prints the avatar state to console (to be replaced with UI code later)."""
+    print(f"--- DISPLAYING: {log.avatar} ---") 
