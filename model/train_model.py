@@ -10,8 +10,8 @@ class Train_Model:
     def __init__(self):
         # 1. Load only the two available datasets
         print("Loading datasets...")
-        self.sleep_health = pd.read_csv("MadData-Hackathon\\data\\expanded_sleep_health_dataset.csv")
-        self.student_stress = pd.read_csv("MadData-Hackathon\\data\\Student Stress Factors.csv")
+        self.sleep_health = pd.read_csv("MadData-Hackathon\data\expanded_sleep_health_dataset.csv")
+        self.student_stress = pd.read_csv("MadData-Hackathon\data\Student Stress Factors.csv")
         
         # 2. Clean Sleep Health Data
         self.sleep_health_clean = self.sleep_health[[
