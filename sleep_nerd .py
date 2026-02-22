@@ -369,29 +369,24 @@ _AVATAR_META = {
 # Module-level cache so PhotoImage refs aren't garbage collected
 _AVATAR_PHOTO_CACHE: dict = {}
 
-# tired has no dedicated image — use overwhelmed avatar for both
-_AVATAR_FILE = {
-    "happy":       "avatar_happy.png",
-    "stressed":    "avatar_stressed.png",
-    "tired":       "avatar_overwhelmed.png",
-    "overwhelmed": "avatar_overwhelmed.png",
-}
-
 def _load_avatar_photo(state: str, size: int = 160):
-    """Load and resize avatar PNG from images/ subfolder. Returns PhotoImage or None."""
+    """Load avatar PNG from images/ subfolder. Returns PhotoImage or None."""
     if not _PIL_OK:
         return None
-    key = (state, size)
+    # Map state to actual filename (tired reuses overwhelmed image)
+    fmap = {
+        "happy":       "avatar_happy.png",
+        "stressed":    "avatar_stressed.png",
+        "tired":       "avatar_overwhelmed.png",
+        "overwhelmed": "avatar_overwhelmed.png",
+    }
+    filename   = fmap.get(state, f"avatar_{state}.png")
+    key        = (state, size)
     if key in _AVATAR_PHOTO_CACHE:
         return _AVATAR_PHOTO_CACHE[key]
-    filename   = _AVATAR_FILE.get(state, f"avatar_{state}.png")
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Check images/ subfolder first (project structure), then root as fallback
-    candidates = [
-        os.path.join(script_dir, "images", filename),
-        os.path.join(script_dir, filename),
-    ]
-    for path in candidates:
+    for path in [os.path.join(script_dir, "images", filename),
+                 os.path.join(script_dir, filename)]:
         if os.path.exists(path):
             img = Image.open(path).convert("RGBA")
             img.thumbnail((size, size), Image.LANCZOS)
@@ -399,7 +394,6 @@ def _load_avatar_photo(state: str, size: int = 160):
             _AVATAR_PHOTO_CACHE[key] = photo
             return photo
     return None
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  MAIN APP
@@ -660,30 +654,87 @@ class SleepNerd(tk.Tk):
         tk.Label(f, text="Sleep & Lifestyle", bg=CARD, fg=TEXT2,
                  font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0,10))
 
-        def _slider_row(parent, label, var, lo, hi, lo_txt, hi_txt, resolution=1):
+        # ── Colour helpers ────────────────────────────────────────────────────
+        def _col_sleep(v):
+            v = float(v)
+            if v < 4:   return "#ef4444"
+            if v <= 6:  return "#f97316"
+            if v <= 10: return "#22c55e"
+            return              "#f97316"
+        def _col_quality(v):
+            n = int(float(v))
+            if n <= 2: return "#ef4444"
+            if n == 3: return "#f97316"
+            return             "#22c55e"
+        def _col_exercise(v):
+            n = int(float(v))
+            if n == 0: return "#ef4444"
+            if n <= 2: return "#f97316"
+            return             "#22c55e"
+        def _col_caffeine(v):
+            n = int(float(v))
+            if n == 0: return "#22c55e"
+            if n <= 2: return "#f97316"
+            return             "#ef4444"
+        def _col_screen(_):
+            return ACCENT
+        def _col_stress(v):
+            n = int(float(v))
+            if n <= 3: return "#22c55e"
+            if n <= 6: return "#f59e0b"
+            if n <= 8: return "#f97316"
+            return             "#ef4444"
+
+        # ── Shared canvas slider builder ──────────────────────────────────
+        def _slider_row(parent, label, var, lo, hi, lo_txt, hi_txt,
+                        resolution=1, colour_fn=None):
+            TH = 6; TR = 10; SH = TR * 2 + 8
             row = tk.Frame(parent, bg=CARD)
-            row.pack(fill="x", pady=5)
-            lbl_f = tk.Frame(row, bg=CARD)
-            lbl_f.pack(fill="x")
-            tk.Label(lbl_f, text=label, bg=CARD, fg=TEXT2,
+            row.pack(fill="x", pady=10)
+            lf = tk.Frame(row, bg=CARD)
+            lf.pack(fill="x", pady=(0, 6))
+            tk.Label(lf, text=label, bg=CARD, fg=TEXT2,
                      font=("Segoe UI", 9)).pack(side="left")
-            val_lbl = tk.Label(lbl_f, text=str(var.get()), bg=CARD,
-                                fg=ACCENT, font=("Segoe UI", 9, "bold"))
-            val_lbl.pack(side="right")
-            sc_row = tk.Frame(row, bg=CARD)
-            sc_row.pack(fill="x")
-            tk.Label(sc_row, text=lo_txt, bg=CARD, fg=TEXT3,
-                     font=("Segoe UI", 8), width=6, anchor="e").pack(side="left")
-            def _upd(v, vl=val_lbl): vl.config(text=v)
-            tk.Scale(sc_row, variable=var, from_=lo, to=hi, orient="horizontal",
-                     command=_upd, resolution=resolution,
-                     bg=CARD, fg=TEXT2, troughcolor=CARD2,
-                     activebackground=ACCENT, highlightthickness=0,
-                     font=("Segoe UI", 8), length=430, sliderlength=16,
-                     showvalue=False, relief="flat", sliderrelief="flat"
-                     ).pack(side="left", padx=6)
-            tk.Label(sc_row, text=hi_txt, bg=CARD, fg=TEXT3,
-                     font=("Segoe UI", 8)).pack(side="left")
+            ic = colour_fn(var.get()) if colour_fn else ACCENT
+            vl = tk.Label(lf, bg=ic, fg="#ffffff",
+                          font=("Segoe UI", 9, "bold"), padx=8, pady=2)
+            vl.pack(side="right")
+            sr = tk.Frame(row, bg=CARD)
+            sr.pack(fill="x")
+            tk.Label(sr, text=lo_txt, bg=CARD, fg=TEXT3, font=("Segoe UI", 8),
+                     width=5, anchor="e").pack(side="left", padx=(0, 8))
+            tk.Label(sr, text=hi_txt, bg=CARD, fg=TEXT3, font=("Segoe UI", 8),
+                     width=5, anchor="w").pack(side="right", padx=(8, 0))
+            cv = tk.Canvas(sr, bg=CARD, highlightthickness=0,
+                           height=SH, cursor="hand2")
+            cv.pack(side="left", fill="x", expand=True)
+            def _draw(c=cv, v=var, cf=colour_fn, vlbl=vl):
+                c.delete("all")
+                W = c.winfo_width()
+                if W < 2: return
+                col  = cf(v.get()) if cf else ACCENT
+                frac = (v.get() - lo) / (hi - lo) if hi != lo else 0
+                cy   = SH // 2; pad = TR + 2; tx = pad + frac * (W - 2*pad)
+                c.create_rectangle(pad, cy-TH//2, W-pad, cy+TH//2, fill=CARD2, outline="")
+                if tx > pad:
+                    c.create_rectangle(pad, cy-TH//2, tx, cy+TH//2, fill=col, outline="")
+                c.create_oval(tx-TR+2,cy-TR+2,tx+TR+2,cy+TR+2, fill="#0a0a1a", outline="")
+                c.create_oval(tx-TR,cy-TR,tx+TR,cy+TR, fill=col, outline="#ffffff", width=2)
+                disp = f"{v.get():.1f}" if resolution < 1 else str(int(v.get()))
+                vlbl.config(text=disp, bg=col,
+                            fg="#0d0d1a" if col in ("#22c55e","#f59e0b") else "#ffffff")
+            def _set(x, c=cv, v=var):
+                W = c.winfo_width(); pad = TR + 2
+                frac = max(0.0, min(1.0, (x-pad)/(W-2*pad)))
+                raw  = lo + frac*(hi-lo)
+                snap = lo + round((raw-lo)/resolution)*resolution if resolution<1 else round(raw)
+                v.set(max(lo, min(hi, snap))); _draw(c, v)
+            cv.bind("<Configure>", lambda e: _draw())
+            cv.bind("<Button-1>",  lambda e: _set(e.x))
+            cv.bind("<B1-Motion>", lambda e: _set(e.x))
+            cv.bind("<Left>",  lambda e: (var.set(max(lo, var.get()-resolution)), _draw()))
+            cv.bind("<Right>", lambda e: (var.set(min(hi, var.get()+resolution)), _draw()))
+            cv.after(50, _draw)
 
         self._sleep_hrs_var  = tk.DoubleVar(value=self.profile.get("sleep_hours",  7.0))
         self._sleep_qual_var = tk.IntVar(   value=self.profile.get("sleep_quality", 3))
@@ -692,52 +743,65 @@ class SleepNerd(tk.Tk):
         self._screen_var     = tk.IntVar(   value=self.profile.get("screen_mins",  30))
 
         _slider_row(f, "Average nightly sleep (hours)",
-                    self._sleep_hrs_var,  3, 12, "3h", "12h", resolution=0.5)
+                    self._sleep_hrs_var,  3, 12, "3h",    "12h",
+                    resolution=0.5, colour_fn=_col_sleep)
         _slider_row(f, "Sleep quality  (1 = terrible  →  5 = excellent)",
-                    self._sleep_qual_var, 1, 5,  "poor", "great")
+                    self._sleep_qual_var, 1,  5, "poor",  "great",
+                    colour_fn=_col_quality)
         _slider_row(f, "Exercise days per week",
-                    self._exercise_var,   0, 7,  "none", "daily")
+                    self._exercise_var,   0,  7, "none",  "daily",
+                    colour_fn=_col_exercise)
         _slider_row(f, "Caffeinated drinks per day",
-                    self._caffeine_var,   0, 10, "0", "10+")
-        _slider_row(f, "Screen time in last hour before bed (minutes)",
-                    self._screen_var,     0, 60, "0 min", "60 min")
+                    self._caffeine_var,   0, 10, "0",     "10+",
+                    colour_fn=_col_caffeine)
+        _slider_row(f, "Screen time before bed (minutes)",
+                    self._screen_var,     0, 60, "0 min", "60 min",
+                    colour_fn=_col_screen)
 
-        # ── Stress slider ─────────────────────────────────────────────────────
+        # ── Stress slider ─────────────────────────────────────────────────
         tk.Frame(f, bg=BORDER, height=1).pack(fill="x", pady=20)
-        stress_hdr = tk.Frame(f, bg=CARD)
-        stress_hdr.pack(fill="x", pady=(0,8))
-        tk.Label(stress_hdr, text="Stress Level", bg=CARD, fg=TEXT2,
-                 font=("Segoe UI",9)).pack(side="left")
-        self._stress_disp = tk.Label(stress_hdr, text="5 / 10  •  moderate",
-                                      bg=CARD, fg=ACCENT,
-                                      font=("Segoe UI",9,"bold"))
-        self._stress_disp.pack(side="right")
-
-        self._stress_var = tk.IntVar(value=self.profile.get("stress",5))
-
-        def _upd_stress(v):
-            n = int(float(v))
-            if n <= 3:   label = "low"
-            elif n <= 6: label = "moderate"
-            elif n <= 8: label = "high"
-            else:        label = "very high"
-            self._stress_disp.config(text=f"{n} / 10  •  {label}")
-
-        scale_row = tk.Frame(f, bg=CARD)
-        scale_row.pack(fill="x")
-        tk.Label(scale_row, text="relaxed", bg=CARD, fg=TEXT3,
-                 font=("Segoe UI",8), width=7, anchor="e").pack(side="left")
-        sc = tk.Scale(scale_row,
-                      variable=self._stress_var, from_=1, to=10,
-                      orient="horizontal", command=_upd_stress,
-                      bg=CARD, fg=TEXT2, troughcolor=CARD2,
-                      activebackground=ACCENT, highlightthickness=0,
-                      font=("Segoe UI",9), length=460, sliderlength=18,
-                      showvalue=False, relief="flat", sliderrelief="flat")
-        sc.pack(side="left", padx=8)
-        tk.Label(scale_row, text="extreme", bg=CARD, fg=TEXT3,
-                 font=("Segoe UI",8)).pack(side="left")
-        _upd_stress(self._stress_var.get())
+        self._stress_var = tk.IntVar(value=self.profile.get("stress", 5))
+        STH = 6; STR = 10; SSH = STR * 2 + 8
+        slbl_f = tk.Frame(f, bg=CARD)
+        slbl_f.pack(fill="x", pady=(0, 6))
+        tk.Label(slbl_f, text="Stress Level", bg=CARD, fg=TEXT2,
+                 font=("Segoe UI", 9)).pack(side="left")
+        s_ic = _col_stress(self._stress_var.get())
+        s_vl = tk.Label(slbl_f, bg=s_ic, fg="#ffffff",
+                        font=("Segoe UI", 9, "bold"), padx=8, pady=2)
+        s_vl.pack(side="right")
+        s_sr = tk.Frame(f, bg=CARD)
+        s_sr.pack(fill="x")
+        tk.Label(s_sr, text="relaxed", bg=CARD, fg=TEXT3, font=("Segoe UI", 8),
+                 width=5, anchor="e").pack(side="left", padx=(0, 8))
+        tk.Label(s_sr, text="extreme", bg=CARD, fg=TEXT3, font=("Segoe UI", 8),
+                 width=5, anchor="w").pack(side="right", padx=(8, 0))
+        s_cv = tk.Canvas(s_sr, bg=CARD, highlightthickness=0,
+                         height=SSH, cursor="hand2")
+        s_cv.pack(side="left", fill="x", expand=True)
+        def _draw_s(c=s_cv, svl=s_vl):
+            c.delete("all")
+            W = c.winfo_width()
+            if W < 2: return
+            n = self._stress_var.get(); col = _col_stress(n)
+            frac = (n-1)/9; cy = SSH//2; pad = STR+2; tx = pad + frac*(W-2*pad)
+            c.create_rectangle(pad,cy-STH//2,W-pad,cy+STH//2, fill=CARD2, outline="")
+            if tx > pad:
+                c.create_rectangle(pad,cy-STH//2,tx,cy+STH//2, fill=col, outline="")
+            c.create_oval(tx-STR+2,cy-STR+2,tx+STR+2,cy+STR+2, fill="#0a0a1a", outline="")
+            c.create_oval(tx-STR,cy-STR,tx+STR,cy+STR, fill=col, outline="#ffffff", width=2)
+            svl.config(text=str(n), bg=col,
+                       fg="#0d0d1a" if col in ("#22c55e","#f59e0b") else "#ffffff")
+        def _set_s(x, c=s_cv):
+            W = c.winfo_width(); pad = STR+2
+            frac = max(0.0, min(1.0, (x-pad)/(W-2*pad)))
+            self._stress_var.set(max(1, min(10, round(1+frac*9)))); _draw_s(c)
+        s_cv.bind("<Configure>", lambda e: _draw_s())
+        s_cv.bind("<Button-1>",  lambda e: _set_s(e.x))
+        s_cv.bind("<B1-Motion>", lambda e: _set_s(e.x))
+        s_cv.bind("<Left>",  lambda e: (self._stress_var.set(max(1,  self._stress_var.get()-1)), _draw_s()))
+        s_cv.bind("<Right>", lambda e: (self._stress_var.set(min(10, self._stress_var.get()+1)), _draw_s()))
+        s_cv.after(50, _draw_s)
 
         # ── Submit ────────────────────────────────────────────────────────────
         tk.Frame(f, bg=BORDER, height=1).pack(fill="x", pady=20)
