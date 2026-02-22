@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -9,10 +10,10 @@ from sklearn.metrics import r2_score, mean_squared_error
 class Train_Model:
     def __init__(self):
         # 1. Load only the two available datasets
-        print("Loading datasets...")
-        self.sleep_health = pd.read_csv("MadData-Hackathon\data\expanded_sleep_health_dataset.csv")
-        self.student_stress = pd.read_csv("MadData-Hackathon\data\Student Stress Factors.csv")
-        
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        self.sleep_health   = pd.read_csv(os.path.join(BASE_DIR, "..", "data", "expanded_sleep_health_dataset.csv"))
+        self.student_stress = pd.read_csv(os.path.join(BASE_DIR, "..", "data", "Student Stress Factors.csv"))
+
         # 2. Clean Sleep Health Data
         self.sleep_health_clean = self.sleep_health[[
             'Sleep Duration', 'Quality of Sleep', 
