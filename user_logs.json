@@ -1,0 +1,18 @@
+{
+  "Ben": {
+    "2026-02-21": {
+      "name": "Ben",
+      "date": "2026-02-21",
+      "hours_slept": 3.5,
+      "sleep_quality": 1,
+      "activity_level": 210,
+      "blood_pressure": 120.0,
+      "avg_heart_rate": 72,
+      "highest_heart_rate": 110,
+      "study_load": 5,
+      "daily_steps": 5000,
+      "predicted_stress": 10.0,
+      "avatar": "Tired/Stressed Avatar"
+    }
+  }
+}
